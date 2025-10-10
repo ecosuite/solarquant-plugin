@@ -1,0 +1,216 @@
+openapi: 3.0.0
+info:
+  description: SolarQuant Predictor Service
+  version: "1.0.0"
+  title: Solar Predictor API
+  contact:
+    email: thomas@ecosuite.io
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+
+paths:
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check endpoint
+      operationId: getHealth
+      description: |
+        Returns the health status of the service. This endpoint can be used
+        by load balancers, orchestration systems, or monitoring tools to
+        verify that the service is running and responsive.
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /measure:
+    post:
+      tags:
+        - measure
+      summary: Ingest measurements and get predictions
+      operationId: postMeasurements
+      description: |
+        Ingest new measurement datums. The service will process the data
+        and may optionally return predictions if it has sufficient data
+        to generate them.
+
+        For example, a cross-prediction service might wait until it receives
+        all inverter readings for a timestamp before returning predictions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - datums
+              properties:
+                datums:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Datum'
+      responses:
+        '200':
+          description: Measurements acknowledged, optional predictions returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: integer
+                    description: Number of measurements accepted
+                  rejected:
+                    type: integer
+                    description: Number of measurements rejected
+                  predictions:
+                    type: array
+                    description: Predictions generated (may be empty if insufficient data)
+                    items:
+                      $ref: '#/components/schemas/Prediction'
+                  message:
+                    type: string
+                    description: Optional status message
+        '400':
+          description: Bad input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Datum:
+      type: object
+      required:
+        - nodeId
+        - sourceId
+        - timestamp
+      properties:
+        nodeId:
+          type: integer
+          description: SolarNetwork node ID
+          example: 377
+        sourceId:
+          type: string
+          description: SolarNetwork source ID
+          example: "/G4/MA/S1/INV/1"
+        timestamp:
+          type: integer
+          format: int64
+          description: Unix timestamp (seconds since epoch)
+          example: 1672531200
+        i:
+          type: object
+          description: Instantaneous properties
+          additionalProperties: true
+          example:
+            watts: 400
+            voltage: 12.6
+            irradiance: 850.5
+        a:
+          type: object
+          description: Accumulating properties
+          additionalProperties: true
+          example:
+            wattHours: 8
+        s:
+          type: object
+          description: Status properties
+          additionalProperties: true
+          example:
+            phase: "A"
+
+    Prediction:
+      type: object
+      required:
+        - nodeId
+        - sourceId
+        - timestamp
+      properties:
+        nodeId:
+          type: integer
+          description: Node ID for this prediction
+        sourceId:
+          type: string
+          description: Source ID for this prediction
+        timestamp:
+          type: integer
+          format: int64
+          description: Timestamp for this prediction
+        i:
+          type: object
+          description: Predicted instantaneous properties
+          additionalProperties: true
+        a:
+          type: object
+          description: Predicted accumulating properties
+          additionalProperties: true
+        s:
+          type: object
+          description: Predicted status properties
+          additionalProperties: true
+        meta:
+          type: object
+          description: Prediction metadata (confidence, error bounds, etc.)
+          additionalProperties: true
+          example:
+            confidence: 0.95
+            predictedValue: 425.3
+            errorBound: 15.2
+            method: "xgboost-cross-prediction"
+
+    Health:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall service health status
+          example: healthy
+        timestamp:
+          type: integer
+          format: int64
+          description: Unix timestamp of health check
+          example: 1672531200
+        uptime:
+          type: number
+          description: Service uptime in seconds
+          example: 86400
+        details:
+          type: object
+          description: Additional health check details
+          additionalProperties: true
+          example:
+            models_loaded: true
+            data_pipeline: "operational"
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
