@@ -111,4 +111,91 @@ When your service accepts the measurements, it should acknowledge them and can i
 
 Each item in `predictions` follows the schema defined in `schema.yaml`, and you're free to include any plugin-specific fields inside `meta`. If no predictions are ready, return an empty array or omit the field.
 
+## Developer Workflow
+
+The SolarNode is responsible for reading data from the devices that it's connected to. It exposes these devices as source IDs, each with measurements
+like watts, voltage, frequency, etc. These are structured as datums:
+
+```
+{
+  "created": "2025-12-11 22:44:27.437Z",
+  "sourceId": "/G4/MA/S1/INV/1",
+  "nodeId": 377,
+
+  "localDate": "2025-12-11",
+  "localTime": "17:44",
+  "watts": 0,
+  "current": 0,
+  "dcPower": 0,
+  "voltage": 493.4,
+  "dcPower1": 0,
+  "dcPower2": 0,
+  "dcVoltage": 266.84998,
+  "frequency": 60,
+  "dcVoltage1": 266.9,
+  "dcVoltage2": 266.8,
+  "temp": 32.5,
+  "dcCurrent": 0,
+  "dcCurrent1": 0,
+  "dcCurrent2": 0,
+  "powerFactor": 0,
+  "apparentPower": 0,
+  "temp_heatSink": 23.6,
+  "current_a": 0,
+  "current_b": 0,
+  "current_c": 0,
+  "voltage_ab": 494.3,
+  "voltage_bc": 491.6,
+  "voltage_ca": 494.3,
+  "wattHours": 32455000,
+  "opStates": "8192",
+  "opState": "3"
+}
+```
+
+The data available is rich in information that may be useful for making future predictions or gaining new insights. To develop, test, and deploy a model, it's
+best to think of two stages: *training* and *inference*.
+
+Training is about taking a large dataset and tuning a model that is capable of being executed to classify or predict, while inference is the execution of the model
+on novel data.
+
+### Training
+
+SolarQuant, using Ecosuite, is capable of downloading large streams of historical datums as well as historical events such as device failures. Together these form
+a rich dataset that explains the minute level state of the devices as well as any failures or downtime.
+
+For instance, downloading a month's worth of inverter data in an example format is as simple as:
+
+```bash
+$ sqc datums stream -s /MA/**/INV/* -f timestamp,watts,current,voltage --start 2022-05-01 --end 2022-06-01 -o datums.csv
+$ head datums.csv
+sourceId,objectId,timestamp,watts,current,voltage
+/MA/PA/S1/INV/12,409,1651363240003,0,0,277.86667
+/MA/PA/S1/INV/12,409,1651363300003,0,0,278.46667
+/MA/PA/S1/INV/12,409,1651363360003,0,0,278.03333
+/MA/PA/S1/INV/12,409,1651363420003,0,0,278.06665
+/MA/PA/S1/INV/12,409,1651363480004,0,0,278.33334
+/MA/PA/S1/INV/12,409,1651363540237,0,0,278.33334
+/MA/PA/S1/INV/12,409,1651363600342,0,0,278.33334
+/MA/PA/S1/INV/12,409,1651363660308,0,0,278.33334
+/MA/PA/S1/INV/12,409,1651363720003,0,0,278.33334
+```
+
+You can find more information about downloading streams of data in the [SolarQuant documentation](https://ecosuite.github.io/solarquant/)
+
+### Inference
+
+The SolarQuant plugin architecture allows you to portably deploy any model (using any framework) onto a node running at the edge. Your code is containerized and
+pushed to a central repository, notifying the node that your model is ready to deploy. The node pulls down your containerized code and executes it on live data as
+it's measured in the same format as historical data. When your model is ready to make predictions, SolarQuant pushes your predictions to SolarNetwork. This allows
+you to view in real time both the measured data from the devices and your plugin's predictions.
+
+<img src="workflow.png" width=50% height=50%>
+
+1. Implement the SolarQuant plugin schema using the provided OpenAPI file (this can be done automatically).
+2. Build your plugin into a docker image.
+3. Push your plugin to a central repository.
+4. View the results by looking at the uploaded predictions.
+
+Steps 2-4 can be repeated indefinitely to fix any issues, optimize your inference or tweak your model.
 
