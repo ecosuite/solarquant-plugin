@@ -37,7 +37,7 @@ predictions.
 
 If your plugin has any prediction datums ready, it should return them in the
 response to `/measure`. These datums that are returned will then be posted to
-SolarNetwork for you.
+[SolarNetwork](https://github.com/SolarNetwork/solarnetwork-node-solarquant) for you.
 
 ## Endpoints
 
